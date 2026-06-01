@@ -1,0 +1,60 @@
+# SignalFlow Bot Configuration
+# Copy this file to config.toml and fill in your values
+# cp config.example.toml config.toml
+
+[wallet]
+# Your Ethereum private key (32 bytes, hex encoded)
+# IMPORTANT: Never share or commit this!
+# You can also set via env: SIGNALFLOW_PRIVATE_KEY
+private_key = "0x_YOUR_PRIVATE_KEY_HERE"
+
+[hyperliquid]
+# Hyperliquid API endpoints
+base_url = "https://api.hyperliquid.xyz"
+ws_url = "wss://api.hyperliquid.xyz/ws"
+
+# Testnet (for testing):
+# base_url = "https://api.hyperliquid-testnet.xyz"
+# ws_url = "wss://api.hyperliquid-testnet.xyz/ws"
+
+[sodex]
+# Sodex API for trading signals
+api_url = "https://api.sodex.io"
+api_key = "YOUR_SODEX_API_KEY"
+
+[strategy]
+# Maximum position size in USD per trade
+# With 20x leverage, $50 = $1000 exposure
+max_position_size = 50.0
+
+# Maximum leverage (1-50)
+max_leverage = 20
+
+# Funding rate threshold (0.01 = 1%)
+# Trigger trades when funding rate exceeds this
+funding_rate_threshold = 0.01
+
+# Poll interval in seconds
+# Lower = faster reaction, higher = less API calls
+poll_interval_secs = 30
+
+# Dry run mode - log trades without executing
+# Set to false when ready for real trading
+dry_run = true
+
+[risk]
+# Maximum total exposure in USD across all positions
+# With 20x leverage and $50 per trade, 5 positions = $5000 exposure
+max_total_exposure = 250.0
+
+# Stop loss percentage (1.5% recommended for 20x leverage)
+# 1.5% move × 20x = 30% loss on position
+stop_loss_pct = 1.5
+
+# Take profit percentage (3.0% recommended for 1:2 risk/reward)
+# 3.0% move × 20x = 60% profit on position
+take_profit_pct = 3.0
+
+# Maximum daily loss in USD
+# Bot stops trading when daily losses exceed this
+max_daily_loss = 50.0
