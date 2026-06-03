@@ -2,6 +2,9 @@ use crate::error::{BotError, Result};
 use serde::Deserialize;
 use std::path::Path;
 
+/// Environment variable name for database URL
+const DATABASE_URL_ENV: &str = "DATABASE_URL";
+
 /// Environment variable name for private key
 const PRIVATE_KEY_ENV: &str = "SIGNALFLOW_PRIVATE_KEY";
 
@@ -40,10 +43,16 @@ pub struct StrategyConfig {
     pub dry_run: bool,
     #[serde(default = "default_trade_log_path")]
     pub trade_log_path: String,
+    #[serde(default = "default_database_url")]
+    pub database_url: String,
 }
 
 fn default_trade_log_path() -> String {
     "trades.jsonl".to_string()
+}
+
+fn default_database_url() -> String {
+    "sqlite:signalflow.db?mode=rwc".to_string()
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -65,6 +74,13 @@ impl Config {
         if let Ok(env_key) = std::env::var(PRIVATE_KEY_ENV) {
             if !env_key.is_empty() {
                 config.wallet.private_key = env_key;
+            }
+        }
+
+        // Override database URL from environment variable if set
+        if let Ok(env_db) = std::env::var(DATABASE_URL_ENV) {
+            if !env_db.is_empty() {
+                config.strategy.database_url = env_db;
             }
         }
 

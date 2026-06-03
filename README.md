@@ -12,10 +12,11 @@ High-performance auto-trading bot for Hyperliquid perpetual futures, powered by 
 - **20x Leverage** — Configurable leverage with tight risk controls
 - **Cancel Orders** — Cancel resting orders by ID or all at once
 - **Position Sync** — Auto-sync positions from exchange on startup
-- **Trade History** — JSONL trade logging for audit trail
+- **Trade History** — SQLite database for persistent trade logging & PnL tracking
 - **Safe Asset Handling** — Unknown coins rejected, no silent BTC fallback
 - **TP/SL Trigger Orders** — Proper `normalTpsl` grouping for Hyperliquid
 - **Rate Limit Protection** — Exponential backoff retry on 429s
+- **Supabase Ready** — Abstract `TradeStore` trait, swap SQLite → PostgreSQL
 
 ## Quick Start
 
@@ -64,6 +65,7 @@ tmux new -s bot
 | `poll_interval_secs` | 30 | Poll interval |
 | `dry_run` | true | Log only, no execution |
 | `trade_log_path` | `trades.jsonl` | Trade history log file |
+| `database_url` | `sqlite:signalflow.db?mode=rwc` | SQLite DB (swap to PostgreSQL for Supabase) |
 
 ### Risk Settings
 

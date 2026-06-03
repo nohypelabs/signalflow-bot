@@ -46,6 +46,10 @@ dry_run = true
 # Each trade is appended as one JSON line
 trade_log_path = "trades.jsonl"
 
+# SQLite database URL (local storage)
+# For Supabase migration: change to postgres://... connection string
+database_url = "sqlite:signalflow.db?mode=rwc"
+
 [risk]
 # Maximum total exposure in USD across all positions
 # With 20x leverage and $50 per trade, 5 positions = $5000 exposure

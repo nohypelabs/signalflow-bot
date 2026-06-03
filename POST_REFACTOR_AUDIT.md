@@ -1,10 +1,10 @@
 # POST_REFACTOR_AUDIT.md
 
-## SignalFlow Bot v0.2.0 — Production Audit Report
+## SignalFlow Bot v0.3.0 — Production Audit Report
 
-**Date:** 2026-06-02
+**Date:** 2026-06-03
 **Auditor:** Claude Code
-**Version:** 0.2.0
+**Version:** 0.3.0
 **Architecture:** Clean Architecture (Domain, Application, Infrastructure, Presentation)
 
 ---
@@ -62,10 +62,11 @@
 |-------|-----|--------|
 | No cancel order | Added `cancel_order()` and `cancel_all_orders()` to HyperliquidClient | ✅ Fixed |
 | No position sync on restart | Added `fetch_positions()` from Hyperliquid clearinghouseState API, auto-sync on startup | ✅ Fixed |
-| No trade history persistence | Added `TradeLog` JSONL logger, appends one line per trade to `trades.jsonl` | ✅ Fixed |
+| No trade history persistence | Added SQLite database with `TradeStore` trait, `SqliteStore` implementation | ✅ Fixed |
 | Unknown coin → BTC fallback | Changed `get_asset_id()` to return `Result<u32>`, removed `fallback_asset_id()`, unknown coins now error | ✅ Fixed |
 | TP/SL not executed by exchange | Changed grouping from `"na"` to `"normalTpsl"`, added auto-generated `cloid` | ✅ Fixed |
 | No rate limit handling | Added retry with exponential backoff (1s→2s→4s) on HTTP 429, 200ms delay between orders | ✅ Fixed |
+| No database | Added SQLite via SQLx, abstract `TradeStore` trait for Supabase migration | ✅ Fixed |
 
 ---
 
@@ -89,7 +90,7 @@ src/
 │   ├── hyperliquid/  # WebSocket + REST clients (cancel, positions, rate limit)
 │   ├── sodex.rs      # Signal provider
 │   ├── signer.rs     # EIP-712 signing
-│   ├── trade_log.rs  # JSONL trade history logger
+│   ├── sqlite_store.rs  # SQLite TradeStore implementation
 │   └── wallet.rs     # Wallet management
 │
 └── presentation/     # Entry point
@@ -257,6 +258,7 @@ Max attempts: 10
 |------|----------|------------|
 | Float precision | Low | Acceptable for current use case |
 | No metrics export | Low | Add Prometheus in future |
+| SQLite single-writer | Low | Connection pool handles concurrency; migrate to PostgreSQL for high-throughput |
 
 ---
 

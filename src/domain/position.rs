@@ -196,6 +196,11 @@ impl PositionTracker {
         }
     }
 
+    /// Public static PnL calculation (for external use)
+    pub fn calc_pnl_static(pos: &Position, current_price: f64, size: f64) -> f64 {
+        Self::calc_pnl(pos, current_price, size)
+    }
+
     fn current_day() -> u64 {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

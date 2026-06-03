@@ -1,6 +1,6 @@
 [package]
 name = "signalflow-bot"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "SignalFlow Auto-Trade Bot - High-performance signal-to-execution on Hyperliquid"
 
@@ -40,6 +40,10 @@ dotenvy = "0.15"
 # Error handling
 anyhow = "1"
 thiserror = "2"
+
+# Database (SQLite via SQLx — swap to "postgres" for Supabase migration)
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+async-trait = "0.1"
 
 # Performance
 bytes = "1"

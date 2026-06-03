@@ -5,9 +5,9 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 use super::config::{RiskConfig, StrategyConfig};
-use crate::domain::{Order, OrderResult, OrderStatus, Position, PositionTracker, Side, Signal};
+use crate::domain::{Order, OrderResult, OrderStatus, Position, PositionTracker, Side, Signal, TradeStore};
 use crate::error::Result;
-use crate::infrastructure::{HyperliquidClient, SodexClient, TradeLog, Wallet};
+use crate::infrastructure::{HyperliquidClient, SodexClient, Wallet};
 
 /// Trading decision
 #[derive(Debug)]
@@ -22,7 +22,7 @@ pub struct TradingService {
     sodex: Arc<SodexClient>,
     wallet: Arc<Wallet>,
     positions: Arc<RwLock<PositionTracker>>,
-    trade_log: TradeLog,
+    store: Arc<dyn TradeStore>,
     config: StrategyConfig,
     risk: RiskConfig,
 }
@@ -32,16 +32,16 @@ impl TradingService {
         hyperliquid: Arc<HyperliquidClient>,
         sodex: Arc<SodexClient>,
         wallet: Arc<Wallet>,
+        store: Arc<dyn TradeStore>,
         config: StrategyConfig,
         risk: RiskConfig,
     ) -> Self {
-        let trade_log = TradeLog::new(&config.trade_log_path);
         Self {
             hyperliquid,
             sodex,
             wallet,
             positions: Arc::new(RwLock::new(PositionTracker::new())),
-            trade_log,
+            store,
             config,
             risk,
         }
@@ -246,8 +246,21 @@ impl TradingService {
                         }
                         _ => {}
                     }
-                    // Log to trade history file
-                    self.trade_log.log_trade(&result);
+                    // Log to database
+                    if let Err(e) = self
+                        .store
+                        .log_trade(
+                            &result.order.coin,
+                            result.order.side,
+                            result.order.size,
+                            result.order.price,
+                            &result.status,
+                            result.timestamp as i64,
+                        )
+                        .await
+                    {
+                        warn!("Failed to log trade to DB: {}", e);
+                    }
                     results.push(result);
                 }
                 Err(e) => {
@@ -270,7 +283,30 @@ impl TradingService {
                 total_sz, avg_px, ..
             } = &result.status
             {
+                // Calculate PnL before updating position tracker
+                let pnl = if let Some(pos) = positions.get(&result.order.coin) {
+                    let is_opposite = (pos.side == crate::domain::PositionSide::Long
+                        && result.order.side == Side::Sell)
+                        || (pos.side == crate::domain::PositionSide::Short
+                            && result.order.side == Side::Buy);
+                    if is_opposite {
+                        let close_size = total_sz.min(pos.size);
+                        crate::domain::PositionTracker::calc_pnl_static(pos, *avg_px, close_size)
+                    } else {
+                        0.0
+                    }
+                } else {
+                    0.0
+                };
+
                 positions.update(&result.order.coin, result.order.side, *total_sz, *avg_px);
+
+                // Persist PnL to database
+                if pnl.abs() > 0.0 {
+                    if let Err(e) = self.store.update_trade_pnl(&result.order.coin, pnl).await {
+                        warn!("Failed to update PnL in DB: {}", e);
+                    }
+                }
             }
         }
     }

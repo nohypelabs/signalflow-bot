@@ -4,8 +4,9 @@ use std::time::Duration;
 use tracing::{debug, error, info};
 
 use crate::application::{Config, TradingService};
+use crate::domain::TradeStore;
 use crate::error::Result;
-use crate::infrastructure::{HyperliquidClient, SodexClient, Wallet};
+use crate::infrastructure::{HyperliquidClient, SodexClient, SqliteStore, Wallet};
 
 /// Run the trading bot
 pub async fn run(config_path: &Path) -> Result<()> {
@@ -23,6 +24,13 @@ pub async fn run(config_path: &Path) -> Result<()> {
         &config.sodex.api_key,
     ));
 
+    // Initialize SQLite store
+    let store: Arc<dyn TradeStore> = Arc::new(
+        SqliteStore::new(&config.strategy.database_url).await?,
+    );
+    store.init().await?;
+    info!("📦 Database initialized: {}", config.strategy.database_url);
+
     // Fetch asset IDs
     hyperliquid.fetch_asset_ids().await?;
 
@@ -37,6 +45,7 @@ pub async fn run(config_path: &Path) -> Result<()> {
         hyperliquid.clone(),
         sodex,
         wallet.clone(),
+        store,
         config.strategy.clone(),
         config.risk.clone(),
     ));
@@ -114,9 +123,10 @@ pub async fn run(config_path: &Path) -> Result<()> {
 }
 
 fn log_config(config: &Config) {
-    info!("🚀 SignalFlow Bot v0.2.0");
+    info!("🚀 SignalFlow Bot v0.3.0");
     info!("  Wallet: {}...", &config.wallet.private_key[..10]);
     info!("  Hyperliquid: {}", config.hyperliquid.base_url);
+    info!("  Database: {}", config.strategy.database_url);
     info!(
         "  Strategy: {}x leverage, ${} position, {}s poll",
         config.strategy.max_leverage,
