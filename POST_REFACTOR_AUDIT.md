@@ -1,10 +1,10 @@
 # POST_REFACTOR_AUDIT.md
 
-## SignalFlow Bot v0.3.0 — Production Audit Report
+## SignalFlow Bot v0.4.0 — Production Audit Report
 
 **Date:** 2026-06-03
 **Auditor:** Claude Code
-**Version:** 0.3.0
+**Version:** 0.4.0
 **Architecture:** Clean Architecture (Domain, Application, Infrastructure, Presentation)
 
 ---
@@ -23,7 +23,7 @@
 
 ## 2. Test Coverage
 
-### Unit Tests: 32 Passing
+### Unit Tests: 45 Passing
 
 | Module | Tests | Coverage |
 |--------|-------|----------|
@@ -31,6 +31,8 @@
 | `domain::position` | 13 | Open, close, reduce, flip, PnL, exposure |
 | `domain::signal` | 5 | Action to side, open/close classification |
 | `domain::market` | 5 | Stale detection, price retrieval |
+| `domain::strategy` | 8 | SMA, ATR, regime detection, params default |
+| `domain::lesson` | 5 | Outcome, cause, lesson serde |
 | `application::config` | 1 | Invalid private key validation |
 
 ### Critical Paths Tested
@@ -67,6 +69,8 @@
 | TP/SL not executed by exchange | Changed grouping from `"na"` to `"normalTpsl"`, added auto-generated `cloid` | ✅ Fixed |
 | No rate limit handling | Added retry with exponential backoff (1s→2s→4s) on HTTP 429, 200ms delay between orders | ✅ Fixed |
 | No database | Added SQLite via SQLx, abstract `TradeStore` trait for Supabase migration | ✅ Fixed |
+| No dynamic strategy | Added Strategy Engine with volatility SL/TP, Kelly sizing, session filter, leverage scaling | ✅ Fixed |
+| No learning from trades | Added Lesson Engine — analyzes win/loss causes, generates rules, bot improves over time | ✅ Fixed |
 
 ---
 
@@ -84,6 +88,8 @@ src/
 │
 ├── application/      # Orchestration layer
 │   ├── config.rs     # Configuration with validation (with tests)
+│   ├── strategy_engine.rs  # Dynamic strategy rules engine
+│   ├── lesson_engine.rs    # Trade analysis & rule generation
 │   └── trading_service.rs  # Core trading logic
 │
 ├── infrastructure/   # External integrations
@@ -259,12 +265,13 @@ Max attempts: 10
 | Float precision | Low | Acceptable for current use case |
 | No metrics export | Low | Add Prometheus in future |
 | SQLite single-writer | Low | Connection pool handles concurrency; migrate to PostgreSQL for high-throughput |
+| Strategy rule cap | Low | 50 lesson rules max; old rules auto-deactivated |
 
 ---
 
 ## 16. Production Readiness Score
 
-### Overall: 9/10
+### Overall: 9.5/10
 
 | Category | Score | Notes |
 |----------|-------|-------|

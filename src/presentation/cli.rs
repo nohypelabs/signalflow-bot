@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error, info};
 
-use crate::application::{Config, TradingService};
+use crate::application::{Config, LessonEngine, StrategyEngine, TradingService};
 use crate::domain::TradeStore;
 use crate::error::Result;
 use crate::infrastructure::{HyperliquidClient, SodexClient, SqliteStore, Wallet};
@@ -31,6 +31,22 @@ pub async fn run(config_path: &Path) -> Result<()> {
     store.init().await?;
     info!("📦 Database initialized: {}", config.strategy.database_url);
 
+    // Initialize Strategy Engine
+    let strategy_engine = Arc::new(StrategyEngine::new(
+        store.clone(),
+        config.strategy.clone(),
+        config.risk.clone(),
+    ));
+    strategy_engine.init().await?;
+    info!("🧠 {}", strategy_engine.rule_stats().await);
+
+    // Initialize Lesson Engine
+    let lesson_engine = Arc::new(LessonEngine::new(
+        store.clone(),
+        config.risk.clone(),
+    ));
+    info!("📚 {}", lesson_engine.stats_summary().await);
+
     // Fetch asset IDs
     hyperliquid.fetch_asset_ids().await?;
 
@@ -46,6 +62,8 @@ pub async fn run(config_path: &Path) -> Result<()> {
         sodex,
         wallet.clone(),
         store,
+        strategy_engine,
+        lesson_engine,
         config.strategy.clone(),
         config.risk.clone(),
     ));
@@ -106,7 +124,13 @@ pub async fn run(config_path: &Path) -> Result<()> {
 
                 // Periodic status log
                 if tick.is_multiple_of(60) {
-                    info!("📊 Tick {} | {}", tick, service.position_summary().await);
+                    info!(
+                        "📊 Tick {} | {} | {} | {}",
+                        tick,
+                        service.position_summary().await,
+                        service.strategy_stats().await,
+                        service.lesson_stats().await
+                    );
                 }
             }
             _ = shutdown_rx.changed() => {

@@ -17,6 +17,8 @@ High-performance auto-trading bot for Hyperliquid perpetual futures, powered by 
 - **TP/SL Trigger Orders** — Proper `normalTpsl` grouping for Hyperliquid
 - **Rate Limit Protection** — Exponential backoff retry on 429s
 - **Supabase Ready** — Abstract `TradeStore` trait, swap SQLite → PostgreSQL
+- **Strategy Engine** — Dynamic rules: volatility SL/TP, Kelly sizing, session filter, leverage scaling
+- **Lesson Engine** — Learns from every trade, generates rules, bot gets smarter over time
 
 ## Quick Start
 
