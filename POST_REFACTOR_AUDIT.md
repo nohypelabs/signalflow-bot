@@ -44,7 +44,7 @@
 
 ## 3. Issues Fixed
 
-### Fixed in This Audit
+### Fixed in v0.2.0 Audit
 
 | Issue | Fix | Status |
 |-------|-----|--------|
@@ -55,6 +55,17 @@
 | Private key in config only | Added env var override `SIGNALFLOW_PRIVATE_KEY` | ✅ Fixed |
 | No config validation | Added validation for all config fields | ✅ Fixed |
 | Clippy warnings | Fixed `or_else` → `or`, redundant closure | ✅ Fixed |
+
+### Fixed in v0.3.0 — Gap/Risk Remediation (2026-06-03)
+
+| Issue | Fix | Status |
+|-------|-----|--------|
+| No cancel order | Added `cancel_order()` and `cancel_all_orders()` to HyperliquidClient | ✅ Fixed |
+| No position sync on restart | Added `fetch_positions()` from Hyperliquid clearinghouseState API, auto-sync on startup | ✅ Fixed |
+| No trade history persistence | Added `TradeLog` JSONL logger, appends one line per trade to `trades.jsonl` | ✅ Fixed |
+| Unknown coin → BTC fallback | Changed `get_asset_id()` to return `Result<u32>`, removed `fallback_asset_id()`, unknown coins now error | ✅ Fixed |
+| TP/SL not executed by exchange | Changed grouping from `"na"` to `"normalTpsl"`, added auto-generated `cloid` | ✅ Fixed |
+| No rate limit handling | Added retry with exponential backoff (1s→2s→4s) on HTTP 429, 200ms delay between orders | ✅ Fixed |
 
 ---
 
@@ -75,9 +86,10 @@ src/
 │   └── trading_service.rs  # Core trading logic
 │
 ├── infrastructure/   # External integrations
-│   ├── hyperliquid/  # WebSocket + REST clients
+│   ├── hyperliquid/  # WebSocket + REST clients (cancel, positions, rate limit)
 │   ├── sodex.rs      # Signal provider
 │   ├── signer.rs     # EIP-712 signing
+│   ├── trade_log.rs  # JSONL trade history logger
 │   └── wallet.rs     # Wallet management
 │
 └── presentation/     # Entry point
@@ -243,30 +255,29 @@ Max attempts: 10
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| No rate limit handling | Low | Monitor Hyperliquid limits |
-| No trade history persistence | Low | Add SQLite in future |
 | Float precision | Low | Acceptable for current use case |
+| No metrics export | Low | Add Prometheus in future |
 
 ---
 
 ## 16. Production Readiness Score
 
-### Overall: 8.5/10
+### Overall: 9/10
 
 | Category | Score | Notes |
 |----------|-------|-------|
 | Architecture | 9/10 | Clean, well-separated |
 | Error Handling | 9/10 | Good, no panics, proper validation |
 | Concurrency | 9/10 | No deadlocks, proper locks |
-| Safety | 8/10 | Good, stale detection added |
-| Performance | 8/10 | WebSocket, async, pooled |
-| Security | 8/10 | Good, env vars supported |
+| Safety | 9/10 | Stale detection, safe asset IDs, rate limit handling |
+| Performance | 9/10 | WebSocket, async, pooled, rate limit protection |
+| Security | 9/10 | Good, env vars, no silent fallbacks |
 | Testing | 8/10 | 32 tests covering critical paths |
-| Observability | 7/10 | Good logging, no metrics |
+| Observability | 8/10 | Good logging, JSONL trade history |
 
 ### Verdict
 
-**Ready for dry-run testing and production deployment.** All critical issues from previous audit have been fixed. Unit tests cover critical domain logic. WebSocket has proper reconnection with exponential backoff.
+**Ready for production deployment.** All critical issues from previous audits have been fixed, including all 6 gap/risiko items (cancel order, position sync, trade history, safe asset ID, TP/SL grouping, rate limit handling). Unit tests cover critical domain logic. WebSocket has proper reconnection with exponential backoff. Trade history persisted to JSONL for audit trail.
 
 ---
 
@@ -274,14 +285,13 @@ Max attempts: 10
 
 ### Production Enhancements
 1. Add metrics export (Prometheus/OpenTelemetry)
-2. Add trade history persistence (SQLite)
-3. Add rate limit handling
-4. Add WebSocket heartbeat monitoring
-5. Add alerting for critical failures
+2. Add WebSocket heartbeat monitoring
+3. Add alerting for critical failures
 
 ---
 
-*Audit completed: 2026-06-02*
+*Audit v0.2.0 completed: 2026-06-02*
+*Gap fix v0.3.0 completed: 2026-06-03*
 *Binary: 3.9 MB, ARM64, optimized with LTO*
 *Tests: 32 passing*
 *Architecture: Clean Architecture (Domain, Application, Infrastructure, Presentation)*

@@ -155,6 +155,17 @@ impl PositionTracker {
         }
     }
 
+    /// Bulk load positions from exchange (used on startup sync)
+    pub fn load_positions(&mut self, positions: Vec<Position>) {
+        let count = positions.len();
+        for pos in positions {
+            self.positions.insert(pos.coin.clone(), pos);
+        }
+        if count > 0 {
+            info!("Synced {} positions from exchange", count);
+        }
+    }
+
     /// Get summary of all positions
     pub fn summary(&self) -> String {
         if self.positions.is_empty() {

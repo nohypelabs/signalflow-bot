@@ -6,7 +6,7 @@ pub use ws::HyperliquidWs;
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn};
+use tracing::info;
 
 use super::signer::Signer;
 use super::wallet::Wallet;
@@ -60,38 +60,38 @@ impl HyperliquidClient {
         Ok(())
     }
 
-    /// Get asset ID for a coin
-    pub async fn get_asset_id(&self, coin: &str) -> u32 {
+    /// Get asset ID for a coin — returns error if coin is unknown
+    pub async fn get_asset_id(&self, coin: &str) -> Result<u32> {
+        let upper = coin.to_uppercase();
+
         // Check cache
         {
             let cache = self.asset_cache.read().await;
             if let Some(ref map) = *cache {
-                if let Some(&id) = map.get(&coin.to_uppercase()) {
-                    return id;
+                if let Some(&id) = map.get(&upper) {
+                    return Ok(id);
                 }
             }
         }
 
         // Cache miss - fetch
-        match self.rest.fetch_meta().await {
-            Ok(map) => {
-                let id = *map.get(&coin.to_uppercase()).unwrap_or(&0);
-                let mut cache = self.asset_cache.write().await;
-                *cache = Some(map);
-                id
-            }
-            Err(e) => {
-                warn!("Failed to fetch asset IDs: {}", e);
-                Self::fallback_asset_id(coin)
-            }
-        }
+        let map = self.rest.fetch_meta().await?;
+        let id = map.get(&upper).copied().ok_or_else(|| {
+            crate::error::BotError::Order(format!(
+                "Unknown coin: {} — not listed on Hyperliquid",
+                coin
+            ))
+        })?;
+        let mut cache = self.asset_cache.write().await;
+        *cache = Some(map);
+        Ok(id)
     }
 
     /// Place an order with signing
     pub async fn place_order(&self, wallet: &Wallet, order: &Order) -> Result<OrderResult> {
         order.validate().map_err(crate::error::BotError::Order)?;
 
-        let asset_id = self.get_asset_id(&order.coin).await;
+        let asset_id = self.get_asset_id(&order.coin).await?;
         let nonce = Self::now_millis();
 
         let signed = self.signer.sign_action(
@@ -118,7 +118,7 @@ impl HyperliquidClient {
         leverage: u32,
         is_cross: bool,
     ) -> Result<()> {
-        let asset_id = self.get_asset_id(coin).await;
+        let asset_id = self.get_asset_id(coin).await?;
         let nonce = Self::now_millis();
 
         let signed = self.signer.sign_action(
@@ -134,6 +134,56 @@ impl HyperliquidClient {
 
         self.rest.exchange(signed).await?;
         Ok(())
+    }
+
+    /// Cancel a resting order by order ID
+    pub async fn cancel_order(&self, wallet: &Wallet, coin: &str, oid: u64) -> Result<()> {
+        let asset_id = self.get_asset_id(coin).await?;
+        let nonce = Self::now_millis();
+
+        let signed = self.signer.sign_action(
+            wallet,
+            "cancel",
+            serde_json::json!({
+                "cancels": [{
+                    "a": asset_id,
+                    "o": oid
+                }]
+            }),
+            nonce,
+        )?;
+
+        self.rest.exchange(signed).await?;
+        info!("Cancelled order {} on {}", oid, coin);
+        Ok(())
+    }
+
+    /// Cancel all resting orders for a coin
+    pub async fn cancel_all_orders(&self, wallet: &Wallet, coin: &str) -> Result<()> {
+        let asset_id = self.get_asset_id(coin).await?;
+        let nonce = Self::now_millis();
+
+        // Use batch cancel with asset ID only (cancels all orders for that asset)
+        let signed = self.signer.sign_action(
+            wallet,
+            "cancel",
+            serde_json::json!({
+                "cancels": [{
+                    "a": asset_id,
+                    "o": 0  // 0 = cancel all for this asset
+                }]
+            }),
+            nonce,
+        )?;
+
+        self.rest.exchange(signed).await?;
+        info!("Cancelled all orders on {}", coin);
+        Ok(())
+    }
+
+    /// Fetch current positions from Hyperliquid
+    pub async fn fetch_positions(&self, address: &str) -> Result<Vec<crate::domain::Position>> {
+        self.rest.fetch_positions(address).await
     }
 
     fn build_order_payload(&self, order: &Order, asset_id: u32) -> serde_json::Value {
@@ -170,9 +220,9 @@ impl HyperliquidClient {
                 "s": format!("{:.6}", order.size),
                 "r": order.reduce_only,
                 "t": order_type,
-                "c": order.client_order_id.clone().unwrap_or_default()
+                "c": order.client_order_id.clone().unwrap_or_else(|| format!("sf-{}", Self::now_millis()))
             }],
-            "grouping": "na"
+            "grouping": "normalTpsl"
         })
     }
 
@@ -204,6 +254,15 @@ impl HyperliquidClient {
                             .unwrap_or(0.0),
                         oid: filled.get("oid").and_then(|o| o.as_u64()).unwrap_or(0),
                     }
+                } else if status.get("cancelled").is_some() || status.get("canceled").is_some() {
+                    OrderStatus::Cancelled {
+                        oid: status
+                            .get("cancelled")
+                            .or_else(|| status.get("canceled"))
+                            .and_then(|c| c.get("oid"))
+                            .and_then(|o| o.as_u64())
+                            .unwrap_or(0),
+                    }
                 } else if let Some(err) = status.get("error") {
                     OrderStatus::Error {
                         message: err.as_str().unwrap_or("Unknown").to_string(),
@@ -217,54 +276,6 @@ impl HyperliquidClient {
             None => OrderStatus::Error {
                 message: "Empty status".to_string(),
             },
-        }
-    }
-
-    fn fallback_asset_id(coin: &str) -> u32 {
-        match coin.to_uppercase().as_str() {
-            "BTC" => 0,
-            "ETH" => 1,
-            "SOL" => 2,
-            "DOGE" => 3,
-            "ARB" => 4,
-            "AVAX" => 5,
-            "LINK" => 6,
-            "APE" => 7,
-            "DYDX" => 8,
-            "ATOM" => 9,
-            "NEAR" => 10,
-            "FTM" => 11,
-            "INJ" => 12,
-            "SUI" => 13,
-            "APT" => 14,
-            "TIA" => 15,
-            "SEI" => 16,
-            "JUP" => 17,
-            "ORDI" => 18,
-            "WIF" => 19,
-            "STX" => 20,
-            "BONK" => 21,
-            "PEPE" | "1000PEPE" => 22,
-            "WLD" => 23,
-            "BLUR" => 24,
-            "PENDLE" => 25,
-            "ETHFI" => 26,
-            "ENA" => 27,
-            "W" => 28,
-            "TAO" => 29,
-            "RENDER" => 30,
-            "FET" => 31,
-            "ARKM" => 32,
-            "IMX" => 33,
-            "AAVE" => 34,
-            "FLOKI" | "1000FLOKI" => 35,
-            "GALA" => 36,
-            "SAND" => 37,
-            "MANA" => 38,
-            "AXS" => 39,
-            "OP" => 40,
-            "LDO" => 41,
-            _ => 0,
         }
     }
 

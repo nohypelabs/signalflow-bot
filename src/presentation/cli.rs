@@ -36,10 +36,23 @@ pub async fn run(config_path: &Path) -> Result<()> {
     let service = Arc::new(TradingService::new(
         hyperliquid.clone(),
         sodex,
-        wallet,
+        wallet.clone(),
         config.strategy.clone(),
         config.risk.clone(),
     ));
+
+    // Sync existing positions from Hyperliquid on startup
+    match hyperliquid.fetch_positions(wallet.address()).await {
+        Ok(positions) => {
+            if !positions.is_empty() {
+                service.load_positions(positions).await;
+                info!("📊 {}", service.position_summary().await);
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Could not sync positions from exchange: {}", e);
+        }
+    }
 
     // Graceful shutdown
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);

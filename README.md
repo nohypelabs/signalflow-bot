@@ -10,6 +10,12 @@ High-performance auto-trading bot for Hyperliquid perpetual futures, powered by 
 - **Position Tracking** — Real-time PnL and exposure monitoring
 - **Clean Architecture** — Modular, testable, maintainable code
 - **20x Leverage** — Configurable leverage with tight risk controls
+- **Cancel Orders** — Cancel resting orders by ID or all at once
+- **Position Sync** — Auto-sync positions from exchange on startup
+- **Trade History** — JSONL trade logging for audit trail
+- **Safe Asset Handling** — Unknown coins rejected, no silent BTC fallback
+- **TP/SL Trigger Orders** — Proper `normalTpsl` grouping for Hyperliquid
+- **Rate Limit Protection** — Exponential backoff retry on 429s
 
 ## Quick Start
 
@@ -57,6 +63,7 @@ tmux new -s bot
 | `max_leverage` | 20 | Maximum leverage |
 | `poll_interval_secs` | 30 | Poll interval |
 | `dry_run` | true | Log only, no execution |
+| `trade_log_path` | `trades.jsonl` | Trade history log file |
 
 ### Risk Settings
 

@@ -42,6 +42,10 @@ poll_interval_secs = 30
 # Set to false when ready for real trading
 dry_run = true
 
+# Trade history log file (JSONL format)
+# Each trade is appended as one JSON line
+trade_log_path = "trades.jsonl"
+
 [risk]
 # Maximum total exposure in USD across all positions
 # With 20x leverage and $50 per trade, 5 positions = $5000 exposure

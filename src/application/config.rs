@@ -38,6 +38,12 @@ pub struct StrategyConfig {
     pub funding_rate_threshold: f64,
     pub poll_interval_secs: u64,
     pub dry_run: bool,
+    #[serde(default = "default_trade_log_path")]
+    pub trade_log_path: String,
+}
+
+fn default_trade_log_path() -> String {
+    "trades.jsonl".to_string()
 }
 
 #[derive(Debug, Deserialize, Clone)]

@@ -1,12 +1,13 @@
 use std::collections::HashSet;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 use super::config::{RiskConfig, StrategyConfig};
-use crate::domain::{Order, OrderResult, OrderStatus, PositionTracker, Side, Signal};
+use crate::domain::{Order, OrderResult, OrderStatus, Position, PositionTracker, Side, Signal};
 use crate::error::Result;
-use crate::infrastructure::{HyperliquidClient, SodexClient, Wallet};
+use crate::infrastructure::{HyperliquidClient, SodexClient, TradeLog, Wallet};
 
 /// Trading decision
 #[derive(Debug)]
@@ -21,6 +22,7 @@ pub struct TradingService {
     sodex: Arc<SodexClient>,
     wallet: Arc<Wallet>,
     positions: Arc<RwLock<PositionTracker>>,
+    trade_log: TradeLog,
     config: StrategyConfig,
     risk: RiskConfig,
 }
@@ -33,11 +35,13 @@ impl TradingService {
         config: StrategyConfig,
         risk: RiskConfig,
     ) -> Self {
+        let trade_log = TradeLog::new(&config.trade_log_path);
         Self {
             hyperliquid,
             sodex,
             wallet,
             positions: Arc::new(RwLock::new(PositionTracker::new())),
+            trade_log,
             config,
             risk,
         }
@@ -234,17 +238,25 @@ impl TradingService {
                         OrderStatus::Resting { oid } => {
                             info!("⏳ Resting: oid={}", oid);
                         }
+                        OrderStatus::Cancelled { oid } => {
+                            info!("🚫 Cancelled: oid={}", oid);
+                        }
                         OrderStatus::Error { message } => {
                             error!("❌ Failed: {}", message);
                         }
                         _ => {}
                     }
+                    // Log to trade history file
+                    self.trade_log.log_trade(&result);
                     results.push(result);
                 }
                 Err(e) => {
                     warn!("Execution error: {}", e);
                 }
             }
+
+            // Rate limit protection: delay between orders
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
 
         results
@@ -268,6 +280,11 @@ impl TradingService {
             "{:?} {:.6} {} @ {:.2}",
             order.side, order.size, order.coin, order.price
         )
+    }
+
+    /// Load positions from exchange sync (startup)
+    pub async fn load_positions(&self, positions: Vec<Position>) {
+        self.positions.write().await.load_positions(positions);
     }
 
     /// Get position summary
