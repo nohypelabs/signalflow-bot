@@ -1,4 +1,4 @@
-# SignalFlow Bot Configuration
+# SignalFlow Bot v0.4.0 — Example Configuration
 # Copy this file to config.toml and fill in your values
 # cp config.example.toml config.toml
 
@@ -17,52 +17,64 @@ ws_url = "wss://api.hyperliquid.xyz/ws"
 # base_url = "https://api.hyperliquid-testnet.xyz"
 # ws_url = "wss://api.hyperliquid-testnet.xyz/ws"
 
-[sodex]
-# Sodex API for trading signals
-api_url = "https://api.sodex.io"
-api_key = "YOUR_SODEX_API_KEY"
+[trading]
+# Trading pair (coin name on Hyperliquid, e.g. SPX, SOL, ETH, BTC)
+pair = "SPX"
 
-[strategy]
-# Maximum position size in USD per trade
-# With 20x leverage, $50 = $1000 exposure
-max_position_size = 50.0
+# Account equity in USD for position sizing
+account_size_usd = 4000.0
 
-# Maximum leverage (1-50)
-max_leverage = 20
+# Minimum position size in USD (used for depth filter)
+min_position_usd = 50.0
 
-# Funding rate threshold (0.01 = 1%)
-# Trigger trades when funding rate exceeds this
-funding_rate_threshold = 0.01
+# Funding rate poll interval (seconds)
+funding_poll_secs = 30
 
-# Poll interval in seconds
-# Lower = faster reaction, higher = less API calls
-poll_interval_secs = 30
+# OHLCV poll interval (not used — candles built from WS trades)
+ohlcv_poll_secs = 60
 
-# Dry run mode - log trades without executing
-# Set to false when ready for real trading
+# Dry run mode — set false to execute real orders
 dry_run = true
 
-# Trade history log file (JSONL format)
-# Each trade is appended as one JSON line
-trade_log_path = "trades.jsonl"
-
-# SQLite database URL (local storage)
-# For Supabase migration: change to postgres://... connection string
-database_url = "sqlite:signalflow.db?mode=rwc"
+# Maximum leverage (SPX max 8x, SOL/ETH up to 20x)
+max_leverage = 8
 
 [risk]
-# Maximum total exposure in USD across all positions
-# With 20x leverage and $50 per trade, 5 positions = $5000 exposure
-max_total_exposure = 250.0
+# Risk per trade as fraction of equity (0.0075 = 0.75%)
+risk_per_trade = 0.0075
 
-# Stop loss percentage (1.5% recommended for 20x leverage)
-# 1.5% move × 20x = 30% loss on position
-stop_loss_pct = 1.5
+# ATR multiplier for stop loss distance
+atr_sl_mult = 1.5
 
-# Take profit percentage (3.0% recommended for 1:2 risk/reward)
-# 3.0% move × 20x = 60% profit on position
-take_profit_pct = 3.0
+# Take profit = tp_mult * SL distance
+tp_mult = 2.5
 
-# Maximum daily loss in USD
-# Bot stops trading when daily losses exceed this
-max_daily_loss = 50.0
+# Maximum concurrent open positions (1 for focused single-pair trading)
+max_open_positions = 1
+
+# Maximum daily loss in USD before halting
+max_daily_loss_usd = 35.0
+
+# Maximum weekly loss in USD before halting
+max_weekly_loss_usd = 100.0
+
+# Maximum total exposure in USD
+max_total_exposure_usd = 200.0
+
+# Equity curve protection — stop trading if drawdown exceeds threshold
+equity_curve_protection = true
+equity_dd_threshold_pct = 8.0
+
+[filters]
+# ATR volatility filter — skip trade if ATR too high or too low
+# max_atr_pct: skip if ATR > this % of price (too volatile)
+# min_atr_pct: skip if ATR < this % of price (too quiet)
+max_atr_pct = 2.0
+min_atr_pct = 0.1
+
+# Session filter — prefer trading during specific hours
+# Reduces score for trades outside preferred session
+session_filter_enabled = true
+session_penalty = 15     # points deducted from score outside session
+session_start_utc = 13   # start of preferred session (UTC hour)
+session_end_utc = 21     # end of preferred session (UTC hour)

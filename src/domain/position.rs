@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use tracing::info;
+use log::info;
 
 use super::order::Side;
 
